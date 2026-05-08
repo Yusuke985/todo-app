@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>新規登録 | Todo App</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="auth-container">
+    <div class="auth-box">
+      <h1 class="app-title">📝 Todo App</h1>
+      <h2 class="auth-title">新規登録</h2>
+
+      <!-- エラーメッセージ表示エリア -->
+      <div id="error-message" class="error-message hidden"></div>
+      <!-- 成功メッセージ表示エリア -->
+      <div id="success-message" class="success-message hidden"></div>
+
+      <!-- 登録フォーム -->
+      <div class="form-group">
+        <label for="username">ユーザー名</label>
+        <input type="text" id="username" placeholder="ユーザー名を入力" />
+      </div>
+
+      <div class="form-group">
+        <label for="email">メールアドレス</label>
+        <input type="email" id="email" placeholder="example@email.com" />
+      </div>
+
+      <div class="form-group">
+        <label for="password">パスワード</label>
+        <input type="password" id="password" placeholder="パスワードを入力" />
+      </div>
+
+      <button id="signup-btn" class="btn btn-primary">登録する</button>
+
+      <p class="auth-link">
+        すでにアカウントをお持ちの方は
+        <a href="login.html">ログイン</a>
+      </p>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById("signup-btn").addEventListener("click", async () => {
+      const username = document.getElementById("username").value;
+      const email = document.getElementById("email").value;
+      const password = document.getElementById("password").value;
+      const errorDiv = document.getElementById("error-message");
+      const successDiv = document.getElementById("success-message");
+
+      // 入力チェック
+      if (!username || !email || !password) {
+        errorDiv.textContent = "全ての項目を入力してください";
+        errorDiv.classList.remove("hidden");
+        successDiv.classList.add("hidden");
+        return;
+      }
+
+      try {
+        // FastAPIに登録リクエスト送信
+        const response = await fetch("http://127.0.0.1:8000/auth/signup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username, email, password })
+        });
+
+        if (response.ok) {
+          // 成功メッセージを表示してログイン画面に遷移
+          errorDiv.classList.add("hidden");
+          successDiv.textContent = "登録完了！ログイン画面に移動します...";
+          successDiv.classList.remove("hidden");
+          setTimeout(() => {
+            window.location.href = "login.html";
+          }, 1500);
+        } else {
+          const data = await response.json();
+          errorDiv.textContent = data.detail || "登録に失敗しました";
+          errorDiv.classList.remove("hidden");
+          successDiv.classList.add("hidden");
+        }
+      } catch (error) {
+        errorDiv.textContent = "サーバーに接続できません";
+        errorDiv.classList.remove("hidden");
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ログイン | Todo App</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="auth-container">
+    <div class="auth-box">
+      <h1 class="app-title">📝 Todo App</h1>
+      <h2 class="auth-title">ログイン</h2>
+
+      <!-- エラーメッセージ表示エリア -->
+      <div id="error-message" class="error-message hidden"></div>
+
+      <!-- ログインフォーム -->
+      <div class="form-group">
+        <label for="username">ユーザー名</label>
+        <input type="text" id="username" placeholder="ユーザー名を入力" />
+      </div>
+
+      <div class="form-group">
+        <label for="password">パスワード</label>
+        <input type="password" id="password" placeholder="パスワードを入力" />
+      </div>
+
+      <button id="login-btn" class="btn btn-primary">ログイン</button>
+
+      <p class="auth-link">
+        アカウントをお持ちでない方は
+        <a href="signup.html">新規登録</a>
+      </p>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById("login-btn").addEventListener("click", async () => {
+      const username = document.getElementById("username").value;
+      const password = document.getElementById("password").value;
+      const errorDiv = document.getElementById("error-message");
+
+      // 入力チェック
+      if (!username || !password) {
+        errorDiv.textContent = "ユーザー名とパスワードを入力してください";
+        errorDiv.classList.remove("hidden");
+        return;
+      }
+
+      try {
+        // FastAPIにログインリクエスト送信
+        const response = await fetch("http://127.0.0.1:8000/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: `username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          // トークンをブラウザに保存
+          localStorage.setItem("token", data.access_token);
+          localStorage.setItem("username", username);
+          // メイン画面に遷移
+          window.location.href = "index.html";
+        } else {
+          errorDiv.textContent = "ユーザー名またはパスワードが間違っています";
+          errorDiv.classList.remove("hidden");
+        }
+      } catch (error) {
+        errorDiv.textContent = "サーバーに接続できません";
+        errorDiv.classList.remove("hidden");
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Todo App</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+  <!-- ヘッダー -->
+  <header class="header">
+    <h1>📝 Todo App</h1>
+    <div class="header-right">
+      <span id="username-display"></span>
+      <button class="logout-btn" id="logout-btn">ログアウト</button>
+    </div>
+  </header>
+
+  <div class="main-container">
+
+    <!-- 進捗グラフ -->
+    <div class="chart-container">
+      <canvas id="progressChart"></canvas>
+    </div>
+
+    <!-- タスク追加フォーム -->
+    <div class="add-task-box">
+      <h2>＋ 新しいタスクを追加</h2>
+      <div class="form-group">
+        <label for="task-title">タスク名</label>
+        <input type="text" id="task-title" placeholder="タスク名を入力（必須）" />
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="task-description">詳細</label>
+          <input type="text" id="task-description" placeholder="詳細（任意）" />
+        </div>
+        <div class="form-group">
+          <label for="task-priority">優先度</label>
+          <select id="task-priority">
+            <option value="high">🔴 高</option>
+            <option value="medium" selected>🟡 中</option>
+            <option value="low">🟢 低</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="task-tag">タグ</label>
+          <input type="text" id="task-tag" placeholder="タグ（任意）" />
+        </div>
+      </div>
+      <button class="btn btn-primary" id="add-task-btn">追加する</button>
+      <div id="add-error" class="error-message hidden"></div>
+    </div>
+
+    <!-- タスク一覧 -->
+    <div class="task-list-box">
+      <h2>タスク一覧</h2>
+      <div id="task-list"></div>
+    </div>
+
+  </div>
+
+  <script>
+    const API = "http://127.0.0.1:8000";
+    let chart = null;
+
+    // ===== 起動時の処理 =====
+    window.addEventListener("load", () => {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        window.location.href = "login.html";
+        return;
+      }
+      document.getElementById("username-display").textContent =
+        localStorage.getItem("username") || "";
+      loadTasks();
+    });
+
+    // ===== ログアウト =====
+    document.getElementById("logout-btn").addEventListener("click", () => {
+      localStorage.removeItem("token");
+      localStorage.removeItem("username");
+      window.location.href = "login.html";
+    });
+
+    // ===== タスク一覧取得 =====
+    async function loadTasks() {
+      const token = localStorage.getItem("token");
+      try {
+        const response = await fetch(`${API}/tasks/`, {
+          headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (response.status === 401) {
+          window.location.href = "login.html";
+          return;
+        }
+        const tasks = await response.json();
+        renderTasks(tasks);
+        renderChart(tasks);
+      } catch (error) {
+        console.error("タスク取得エラー:", error);
+      }
+    }
+
+    // ===== タスク一覧表示 =====
+    function renderTasks(tasks) {
+      const taskList = document.getElementById("task-list");
+      if (tasks.length === 0) {
+        taskList.innerHTML = `<p class="empty-message">タスクがありません。追加してみましょう！</p>`;
+        return;
+      }
+
+      const priorityLabel = { high: "🔴 高", medium: "🟡 中", low: "🟢 低" };
+      const priorityClass = { high: "priority-high", medium: "priority-medium", low: "priority-low" };
+
+      taskList.innerHTML = tasks.map(task => `
+        <div class="task-item" id="task-${task.id}">
+          <div class="task-left">
+            <input type="checkbox"
+              ${task.is_done ? "checked" : ""}
+              onchange="toggleTask(${task.id}, this.checked)"
+            />
+            <div>
+              <div class="task-title ${task.is_done ? 'done' : ''}">
+                ${task.title}
+              </div>
+              <div class="task-meta">
+                ${task.tag ? `#${task.tag}` : ""}
+                ${task.description ? `・${task.description}` : ""}
+              </div>
+            </div>
+          </div>
+          <div class="task-right">
+            <span class="priority-badge ${priorityClass[task.priority]}">
+              ${priorityLabel[task.priority]}
+            </span>
+            <button class="btn btn-danger"
+              onclick="deleteTask(${task.id})">削除</button>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    // ===== 進捗グラフ表示 =====
+    function renderChart(tasks) {
+      const done = tasks.filter(t => t.is_done).length;
+      const notDone = tasks.length - done;
+      const ctx = document.getElementById("progressChart").getContext("2d");
+
+      if (chart) chart.destroy();
+
+      chart = new Chart(ctx, {
+        type: "doughnut",
+        data: {
+          labels: ["完了", "未完了"],
+          datasets: [{
+            data: [done, notDone],
+            backgroundColor: ["#10b981", "#e5e7eb"],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          plugins: {
+            legend: { position: "bottom" },
+            tooltip: { enabled: true }
+          },
+          cutout: "70%"
+        }
+      });
+    }
+
+    // ===== タスク追加 =====
+    document.getElementById("add-task-btn").addEventListener("click", async () => {
+      const title = document.getElementById("task-title").value.trim();
+      const description = document.getElementById("task-description").value.trim();
+      const priority = document.getElementById("task-priority").value;
+      const tag = document.getElementById("task-tag").value.trim();
+      const errorDiv = document.getElementById("add-error");
+
+      if (!title) {
+        errorDiv.textContent = "タスク名は必須です";
+        errorDiv.classList.remove("hidden");
+        return;
+      }
+      errorDiv.classList.add("hidden");
+
+      const token = localStorage.getItem("token");
+      try {
+        const response = await fetch(`${API}/tasks/`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            title,
+            description: description || null,
+            priority,
+            tag: tag || null
+          })
+        });
+
+        if (response.ok) {
+          // 入力欄をリセット
+          document.getElementById("task-title").value = "";
+          document.getElementById("task-description").value = "";
+          document.getElementById("task-tag").value = "";
+          document.getElementById("task-priority").value = "medium";
+          loadTasks();
+        }
+      } catch (error) {
+        console.error("タスク追加エラー:", error);
+      }
+    });
+
+    // ===== 完了チェック =====
+    async function toggleTask(taskId, isDone) {
+      const token = localStorage.getItem("token");
+      try {
+        await fetch(`${API}/tasks/${taskId}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({ is_done: isDone })
+        });
+        loadTasks();
+      } catch (error) {
+        console.error("タスク更新エラー:", error);
+      }
+    }
+
+    // ===== タスク削除 =====
+    async function deleteTask(taskId) {
+      if (!confirm("このタスクを削除しますか？")) return;
+      const token = localStorage.getItem("token");
+      try {
+        await fetch(`${API}/tasks/${taskId}`, {
+          method: "DELETE",
+          headers: { "Authorization": `Bearer ${token}` }
+        });
+        loadTasks();
+      } catch (error) {
+        console.error("タスク削除エラー:", error);
+      }
+    }
+  </script>
+</body>
+</html>
